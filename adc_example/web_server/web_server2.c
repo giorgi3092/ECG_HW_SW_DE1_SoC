@@ -308,6 +308,30 @@ int main() {
 
     // executed by the child process
     if (pid == 0) {
+
+        // delay the server 
+        volatile int delay = 0;
+        for(delay = 0; delay <= 10000; delay++);
+
+        int fd;
+
+        // Open /dev/mem
+        if( ( fd = open( "/dev/mem", ( O_RDWR | O_SYNC ) ) ) == -1 ) 	{
+            printf( "ERROR: could not open \"/dev/mem\"...\n" );
+            return( 1 );
+        }
+
+        // get virtual addr that maps to physical
+        void *h2p_lw_virtual_base = mmap( NULL, LW_BRIDGE_SPAN, ( PROT_READ | PROT_WRITE ), MAP_SHARED, fd, LW_BRIDGE_BASE );	
+        if( h2p_lw_virtual_base == MAP_FAILED ) {
+            printf( "ERROR: mmap1() failed...\n" );
+            close( fd );
+            return(1);
+        }
+
+        // Set virtual address pointer to I/O port
+        volatile unsigned int *ADC_ptr = (unsigned int *) (h2p_lw_virtual_base + ADC_BASE);
+
         #if defined(_WIN32)
             WSADATA d;
             if (WSAStartup(MAKEWORD(2, 2), &d)) {
