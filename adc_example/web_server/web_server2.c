@@ -230,11 +230,20 @@ void send_404(struct client_info **client_list,
 
 
 void serve_resource(struct client_info **client_list,
-        struct client_info *client, const char *path) {
+        struct client_info *client, const char *path, volatile unsigned int *ADC_ptr) {
+#define BSIZE 1024
+    volatile unsigned int *ADC_pointer = ADC_ptr;
 
-    printf("serve_resource %s %s\n", get_client_address(client), path);
+    char buffer_to_send[BSIZE];
 
-    if (strcmp(path, "/") == 0) path = "/index.html";
+
+    sprintf(buffer_to_send, "{\r\n");
+    int i;
+    for(i = 0; i < 7; i++) {
+        sprintf(buffer_to_send + strlen(buffer_to_send), "\"c%d\":%f,\r\n", i, (float) (*(ADC_pointer+i)&0xFFF)/1000.0);
+    }
+    sprintf(buffer_to_send + strlen(buffer_to_send), "\"c%d\":%f\r\n", i, (float) (*(ADC_pointer+i)&0xFFF)/1000.0);
+    sprintf(buffer_to_send + strlen(buffer_to_send), "}");
 
     if (strlen(path) > 100) {
         send_400(client_list, client);
@@ -246,9 +255,6 @@ void serve_resource(struct client_info **client_list,
         return;
     }
 
-    char full_path[128];
-    sprintf(full_path, "public%s", path);
-
 #if defined(_WIN32)
     char *p = full_path;
     while (*p) {
@@ -257,20 +263,6 @@ void serve_resource(struct client_info **client_list,
     }
 #endif
 
-    FILE *fp = fopen(full_path, "rb");
-
-    if (!fp) {
-        send_404(client_list, client);
-        return;
-    }
-
-    fseek(fp, 0L, SEEK_END);
-    size_t cl = ftell(fp);
-    rewind(fp);
-
-    const char *ct = get_content_type(full_path);
-
-#define BSIZE 1024
     char buffer[BSIZE];
 
     sprintf(buffer, "HTTP/1.1 200 OK\r\n");
@@ -279,22 +271,23 @@ void serve_resource(struct client_info **client_list,
     sprintf(buffer, "Connection: close\r\n");
     send(client->socket, buffer, strlen(buffer), 0);
 
-    sprintf(buffer, "Content-Length: %u\r\n", cl);
+
+    sprintf(buffer, "{""channel_0"":""1.2345644""}");
+
+
+    sprintf(buffer, "Content-Length: %u\r\n", sizeof(buffer_to_send)-1);
     send(client->socket, buffer, strlen(buffer), 0);
 
-    sprintf(buffer, "Content-Type: %s\r\n", ct);
+    sprintf(buffer, "Content-Type: application/json\r\n");
     send(client->socket, buffer, strlen(buffer), 0);
 
     sprintf(buffer, "\r\n");
     send(client->socket, buffer, strlen(buffer), 0);
+    
 
-    int r = fread(buffer, 1, BSIZE, fp);
-    while (r) {
-        send(client->socket, buffer, r, 0);
-        r = fread(buffer, 1, BSIZE, fp);
-    }
+    send(client->socket, buffer_to_send, strlen(buffer_to_send), 0);
 
-    fclose(fp);
+
     drop_client(client_list, client);
 }
 /******** Ending Networking ********/
@@ -406,7 +399,7 @@ int main() {
                                         send_400(&client_list, client);
                                     } else {
                                         *end_path = 0;
-                                        serve_resource(&client_list, client, path);
+                                        serve_resource(&client_list, client, path, ADC_ptr);
                                     }
                                 }
                             } //if (q)
