@@ -1,3 +1,6 @@
+#ifndef ADC_ADDRESS_MAP
+#define ADC_ADDRESS_MAP
+
 /* This files provides address values that exist in the system */
 
 #define BOARD                 "DE1-SoC"
@@ -75,3 +78,5 @@
 #define ICDICER               0x180         // offset to interrupt clear-enable regs
 #define ICDIPTR               0x800         // offset to interrupt processor targets regs
 #define ICDICFR               0xC00         // offset to interrupt configuration regs
+
+#endif

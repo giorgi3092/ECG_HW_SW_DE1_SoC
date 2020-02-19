@@ -1,6 +1,8 @@
-int fd = -1;                                // used to open /dev/mem
-void *h2p_lw_virtual_base;                  // the light weight buss base
-volatile unsigned int * ADC_ptr = NULL;     // virtual address pointer to read ADC
+#include "adc.h"
+#include "mongoose.h"
+
+#ifndef ADC_FUNCTION_DEFINITIONS
+#define ADC_FUNCTION_DEFINITIONS
 
 /* Open /dev/mem to give access to physical addresses */
 int open_physical (int fd)
@@ -46,3 +48,5 @@ int unmap_physical(void * virtual_base, unsigned int span)
     }
     return 0;
 }
+
+#endif

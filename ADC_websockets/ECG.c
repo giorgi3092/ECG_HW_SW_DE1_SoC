@@ -1,5 +1,5 @@
 #include "mongoose.h"           //  include Mongoose API definitions
-#include "address_map_arm.h"    //  include tha hardware address map
+#include "adc.h"                //  include function prototypes for ADC control
 
 static sig_atomic_t s_signal_received = 0; 
 static const char *s_http_port = "8080";
@@ -57,6 +57,10 @@ static void ev_handler(struct mg_connection *nc, int ev, void *ev_data) {
   }
 }
 
+int fd = -1;                                // used to open /dev/mem
+void *h2f_lw_virtual_base;                  // the light weight buss base
+volatile unsigned int * ADC_ptr = NULL;     // virtual address pointer to read ADC
+
 int main(void) {
   struct mg_mgr mgr;
   struct mg_connection *nc;
@@ -74,10 +78,36 @@ int main(void) {
   s_http_server_opts.enable_directory_listing = "yes";
 
   printf("Started ECG server on port %s\n", s_http_port);
+
+  /************ ADC mapping / setup ************/
+  // Create virtual memory access to the FPGA light-weight bridge
+  if ((fd = open_physical (fd)) == -1) {
+    printf( "ERROR: could not open \"/dev/mem\"...\n" );
+    return (-1);
+  }
+    
+  if (!(h2f_lw_virtual_base = map_physical (fd, LW_BRIDGE_BASE, LW_BRIDGE_SPAN))) {
+		printf( "ERROR: mmap1() failed...\n" );
+		close( fd );
+    return (-1);
+  }
+  
+  // Set virtual address pointer to I/O port
+  ADC_ptr = (unsigned int *) (h2f_lw_virtual_base + ADC_BASE);
+
+  // Sets the ADC up to automatically perform conversions.
+  *(ADC_ptr + 1) = 1;
+
+/************ end ADC mapping / setup ************/
+
   while (s_signal_received == 0) {
     mg_mgr_poll(&mgr, 200);
   }
-  mg_mgr_free(&mgr);
 
+  // clean up
+  mg_mgr_free(&mgr);
+  unmap_physical (h2f_lw_virtual_base, LW_BRIDGE_SPAN);
+  close_physical (fd);
+  
   return 0;
 }
