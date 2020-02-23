@@ -49,4 +49,23 @@ int unmap_physical(void * virtual_base, unsigned int span)
     return 0;
 }
 
+char* split_string(char* strPtr, char delim[], int word_pos) {
+	
+	char *ptr = strPtr;
+	char * pointer_to_return = NULL;
+	pointer_to_return = strtok(ptr, delim);
+
+	if (word_pos == 0){
+		return pointer_to_return;  
+	}
+
+	int i = 0;
+
+	for(i = 0; i < word_pos && pointer_to_return != NULL; i++){
+		pointer_to_return = strtok(NULL, delim);
+	}
+
+	return pointer_to_return;
+}
+
 #endif
