@@ -44,9 +44,10 @@
 #define AUDIO_BASE            0x00003040
 #define VIDEO_IN_BASE         0x00003060
 #define EDGE_DETECT_CTRL_BASE 0x00003070
-#define ADC_BASE              0x00004000
+//#define ADC_BASE              0x00004000
+#define ADC_BASE              0x00005000
 
-#define LW_BRIDGE_SPAN        0x00005000
+#define LW_BRIDGE_SPAN        0x00006000
 #define LW_BRIDGE_MASK        LW_BRIDGE_SPAN-1
 
 /* Cyclone V HPS devices */

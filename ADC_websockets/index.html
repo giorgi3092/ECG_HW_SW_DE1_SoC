@@ -2,12 +2,20 @@
 <html>
 <head>
     <meta charset="utf-8" />
-    <title></title>
+    <title>ECG Demo Website</title>
+    <script src="https://d3js.org/d3.v4.min.js"></script>
+    <script src="script.js"></script>
     <style>
         table { border: 0 }
         .commslog-data { font-family: Consolas, Courier New, Courier, monospace; }
         .commslog-server { background-color: red; color: white }
         .commslog-client { background-color: green; color: white }
+        
+        /* chart width and height */
+        #chart {
+            max-width: 600px;
+            max-height: 400px;
+        }
     </style>
 </head>
 <body>
@@ -26,6 +34,7 @@
         <button id="closeButton" disabled>Close Socket</button>
     </div>
 
+    
     <h2>Communication Log</h2>
     <table style="width: 800px">
         <thead>
@@ -38,6 +47,9 @@
         <tbody id="commsLog">
         </tbody>
     </table>
+    
+
+    <div id="chart"></div>
 
     <script>
         var connectionUrl = document.getElementById("connectionUrl");
@@ -52,7 +64,18 @@
         var scheme = document.location.protocol === "https:" ? "wss" : "ws";
         var port = document.location.port ? (":" + document.location.port) : "";
 
-        connectionUrl.value = scheme + "://" + document.location.hostname + port + "/ws" ;
+        connectionUrl.value = scheme + "://192.168.1.95:8080";
+
+
+        function isJson(str) {
+            try {
+                JSON.parse(str);
+            } catch (e) {
+                return false;
+            }
+            return true;
+        }
+
 
         function updateState() {
             function disable() {
@@ -112,12 +135,23 @@
             }
             var data = sendMessage.value;
             socket.send(data);
+            /*
             commsLog.innerHTML += '<tr>' +
                 '<td class="commslog-client">Client</td>' +
                 '<td class="commslog-server">Server</td>' +
-                '<td class="commslog-data">' + htmlEscape(data) + '</td></tr>';
+                '<td class="commslog-data">' + htmlEscape(data) + '</td></tr>';*/
         };
 
+
+        var ADC_V1_value = 0;
+        var ADC_V2_value = 0;
+        var ADC_V3_value = 0;
+        var ADC_V4_value = 0;
+        var ADC_V5_value = 0;
+        var ADC_V6_value = 0;
+        var ADC_RA_value = 0;
+        var ADC_LA_value = 0;
+        
         connectButton.onclick = function() {
             stateLabel.innerHTML = "Connecting";
             socket = new WebSocket(connectionUrl.value);
@@ -134,12 +168,34 @@
                 '</tr>';
             };
             socket.onerror = updateState;
+            
             socket.onmessage = function (event) {
-                commsLog.innerHTML += '<tr>' +
-                    '<td class="commslog-server">Server</td>' +
-                    '<td class="commslog-client">Client</td>' +
-                    '<td class="commslog-data">' + htmlEscape(event.data) + '</td></tr>';
+                if(isJson(event.data)){
+                    // valid json
+
+                    var adcObj = JSON.parse(event.data);
+
+                    ADC_V1_value = parseFloat(adcObj.V1);
+                    ADC_V2_value = parseFloat(adcObj.V2);
+                    ADC_V3_value = parseFloat(adcObj.V3);
+                    ADC_V4_value = parseFloat(adcObj.V4);
+                    ADC_V5_value = parseFloat(adcObj.V5);
+                    ADC_V6_value = parseFloat(adcObj.V6);
+                    ADC_RA_value = parseFloat(adcObj.RA);
+                    ADC_LA_value = parseFloat(adcObj.LA);
+                    
+                } else {
+                    ADC_V1_value = 0;
+                    ADC_V2_value = 0;
+                    ADC_V3_value = 0;
+                    ADC_V4_value = 0;
+                    ADC_V5_value = 0;
+                    ADC_V6_value = 0;
+                    ADC_RA_value = 0;
+                    ADC_LA_value = 0;
+                }
             };
+            
         };
 
         function htmlEscape(str) {
@@ -150,6 +206,70 @@
                 .replace(/</g, '&lt;')
                 .replace(/>/g, '&gt;');
         }
+
+
+
+        var lineArr = [];
+        var MAX_LENGTH = 100;
+        var duration = 500;
+        var chart = realTimeLineChart();
+
+        function randomNumberBounds(min, max) {
+            return Math.floor(Math.random() * max) + min;
+        }
+
+        function seedData() {
+            var now = new Date();
+            for (var i = 0; i < MAX_LENGTH; ++i) {
+                lineArr.push({
+                    time: new Date(now.getTime() - ((MAX_LENGTH - i) * duration)),
+                    x: 0,
+                    y: 0,
+                    z: 0
+                });
+            }
+        }
+
+        function updateData() {
+            var now = new Date();
+
+            var lineData = {
+                time: now,
+                x: ADC_V1_value,
+                y: ADC_V2_value,
+                z: ADC_V3_value
+            };
+
+            lineArr.push(lineData);
+
+            if (lineArr.length > 30) {
+                lineArr.shift();
+            }
+
+            d3.select("#chart").datum(lineArr).call(chart);
+
+            console.log(ADC_V1_value);
+        }
+
+        function resize() {
+            if (d3.select("#chart svg").empty()) {
+                return;
+            }
+            chart.width(+d3.select("#chart").style("width").replace(/(px)/g, ""));
+            d3.select("#chart").call(chart);
+        }
+
+        document.addEventListener("DOMContentLoaded", function() {
+            seedData();
+            window.setInterval(updateData, 500);
+            d3.select("#chart").datum(lineArr).call(chart);
+            d3.select(window).on('resize', resize);
+        });
     </script>
+
+
+
+
+
 </body>
 </html>
