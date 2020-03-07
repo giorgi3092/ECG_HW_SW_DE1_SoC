@@ -210,8 +210,8 @@
 
 
         var lineArr = [];
-        var MAX_LENGTH = 100;
-        var duration = 500;
+        var MAX_LENGTH = 5000;
+        var duration = 2;
         var chart = realTimeLineChart();
 
         function randomNumberBounds(min, max) {
@@ -261,7 +261,7 @@
 
         document.addEventListener("DOMContentLoaded", function() {
             seedData();
-            window.setInterval(updateData, 500);
+            window.setInterval(updateData, duration);
             d3.select("#chart").datum(lineArr).call(chart);
             d3.select(window).on('resize', resize);
         });

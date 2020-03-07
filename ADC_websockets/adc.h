@@ -17,6 +17,7 @@
 #define ADC_WT 1
 #define ADC_BT 2
 
+#define DEFAULT_TIMER_PERIOD 0.004
 
 #include "address_map_arm.h"    //  include tha hardware address map
 

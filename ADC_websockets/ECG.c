@@ -1,6 +1,8 @@
 #include "mongoose.h"           //  include Mongoose API definitions
 #include "adc.h"                //  include function prototypes for ADC control
 
+double sec_period = DEFAULT_TIMER_PERIOD;
+
 static sig_atomic_t s_signal_received = 0; 
 static const char *s_http_port = "8080";
 static struct mg_serve_http_opts s_http_server_opts;
@@ -47,28 +49,56 @@ static void broadcast_options_set(struct mg_connection *nc, const struct mg_str 
   char command_buf[100];
   char addr[32];
   bool is_continuous_requested = false;
+  bool is_continuous_with_timer_requested = false;
   bool is_continuous_stop_requested = false;
   char* req;
-  char* msec_timer_option;
+  char* sec_timer_option;
   bool command_success = false;
+  long long int transmission_freq;
   snprintf(command_buf, sizeof(command_buf), "%.*s", (int) msg.len, msg.p);
   mg_sock_addr_to_str(&nc->sa, addr, sizeof(addr),
                       MG_SOCK_STRINGIFY_IP | MG_SOCK_STRINGIFY_PORT);
 
-  req = split_string(command_buf, " ", 0);
-  msec_timer_option = split_string(command_buf, " ", 1);
+  printf("1\n");
 
+  // acquire command and options
+  req = strtok(command_buf, " ");
+  if(req != NULL) {
+    sec_timer_option = strtok(NULL, " ");
+  }
+
+  // test commands and options
   is_continuous_requested = strcmp(req, continuous_transmission_request)==0 ? true : false;
   is_continuous_stop_requested = strcmp(req, continuous_transmission_request_stop)==0 ? true : false;
 
-  if(is_continuous_requested){
-    mg_set_timer(nc, mg_time() + 0.001);
+  if((sec_timer_option != NULL) && ((transmission_freq = atoll((const char *)sec_timer_option)) != (long long int) 0)){
+    is_continuous_with_timer_requested = true;
+
+    // convert frequency to period in seconds
+    sec_period =  1/(double)transmission_freq;
+  } else {
+    sec_period = DEFAULT_TIMER_PERIOD;
+  }
+
+  printf("ADC frequency requested: %lli\n", transmission_freq);
+  printf("ADC period requested: %lf\n", sec_period);
+
+  // local housekeeping
+  if(is_continuous_requested && !is_continuous_with_timer_requested){
+    mg_set_timer(nc, mg_time() + sec_period);
     command_success = true;
+    printf("""start_continuous"" command accepted.\n");
+  } else if (is_continuous_requested && is_continuous_with_timer_requested) {
+    mg_set_timer(nc, mg_time() + sec_period);
+    command_success = true;
+    printf("""start_continuous %lf"" command accepted.\n", sec_period);
   } else if (is_continuous_stop_requested) {
     mg_set_timer(nc, mg_time() + 99999999);   // not the best solution :/
     command_success = true;
+    printf("""stop_continuous"" command accepted.\n");
   }
 
+  // remote endpoint notifications
   if(command_success){
     snprintf(buf, sizeof(buf), "%s: Command Accepted", addr);
     printf("%s\n", buf); /* Local echo. */
@@ -152,10 +182,9 @@ static void ev_handler(struct mg_connection *nc, int ev, void *ev_data) {
       // a new timer event, after the previous was set
 
       // set the next timer
-      mg_set_timer(nc, mg_time() + 0.001);
+      mg_set_timer(nc, mg_time() + sec_period);
 
       // send JSON formatted values on the ADC channels
-      printf("timer triggered");
       broadcast_JSON_formatted_DATA(nc);
 
       break;
