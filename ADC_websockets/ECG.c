@@ -1,7 +1,12 @@
 #include "mongoose.h"           //  include Mongoose API definitions
 #include "adc.h"                //  include function prototypes for ADC control
+#include "dll.h"
 
 double sec_period = DEFAULT_TIMER_PERIOD;
+
+// external doubly linked list heads for each lead
+extern struct Node* head[12] = {NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL};
+extern int linkedListCount; 
 
 static sig_atomic_t s_signal_received = 0; 
 static const char *s_http_port = "8080";
@@ -13,6 +18,7 @@ static const char *continuous_transmission_request_stop = "stop_continuous";
 
 // store the ADC channel values here (global variable)
 int channel_values[8];
+float channel_values_normalized[8];
 
 static void signal_handler(int sig_num) {
   signal(sig_num, signal_handler);  // Reinstantiate signal handler
@@ -141,26 +147,63 @@ static void broadcast_JSON_formatted_DATA(struct mg_connection *nc) {
   mg_sock_addr_to_str(&nc->sa, addr, sizeof(addr),
                       MG_SOCK_STRINGIFY_IP | MG_SOCK_STRINGIFY_PORT);
 
-//  snprintf(buf, sizeof(buf), "%s %.*s", addr, (int) msg.len, msg.p);
-  snprintf(buf, sizeof(buf), "{\"V1\":%1.3f,"
-                             "\"V2\":%1.3f,"
-                             "\"V3\":%1.3f,"
-                             "\"V4\":%1.3f,"
-                             "\"V5\":%1.3f,"
-                             "\"V6\":%1.3f,"
-                             "\"RA\":%1.3f,"
-                             "\"LA\":%1.3f}",
-                             channel_values[ADC_V1]/1000.0,
-                             channel_values[ADC_V2]/1000.0,
-                             channel_values[ADC_V3]/1000.0,
-                             channel_values[ADC_V4]/1000.0,
-                             channel_values[ADC_V5]/1000.0,
-                             channel_values[ADC_V6]/1000.0,
-                             channel_values[ADC_RA]/1000.0,
-                             channel_values[ADC_LA]/1000.0);
+int i;
 
-  //printf("%s\n", buf); /* Local echo. */
-  printf("%u\n", samples_taken++);
+// convert to floating point values with 2V offset considered 
+for(i = 0; i < 8; i++){
+  channel_values_normalized[i] = (channel_values[i])/1000.0-2.0;
+}
+
+//printf("%s\n", buf); /* Local echo. */
+printf("%u\n", samples_taken++);
+
+// updating the linked list
+for(i = 0; i < 12; i++){
+  if(samples_taken >= 5001){
+    // add one at tail. remove one at head.
+
+    if(i < 8){
+      InsertAtTail(channel_values_normalized[i], i);
+      RemoveAtHead(i);
+    } else
+    {
+      InsertAtTail(0.0f, i);
+      RemoveAtHead(i);
+    }
+  } else {
+    // add normally, without touching the head
+
+    if(i < 8){
+      InsertAtTail(channel_values_normalized[i], i);
+    } else
+    {
+      InsertAtTail(0.0f, i);
+    }
+  }
+  
+}
+
+if (samples_taken == 10000)
+  saveCSVfile();
+
+//  snprintf(buf, sizeof(buf), "%s %.*s", addr, (int) msg.len, msg.p);
+  snprintf(buf, sizeof(buf), "{\"V1\":%1.4f,"
+                             "\"V2\":%1.4f,"
+                             "\"V3\":%1.4f,"
+                             "\"V4\":%1.4f,"
+                             "\"V5\":%1.4f,"
+                             "\"V6\":%1.4f,"
+                             "\"RA\":%1.4f,"
+                             "\"LA\":%1.4f}",
+                             channel_values_normalized[0],
+                             channel_values_normalized[1],
+                             channel_values_normalized[2],
+                             channel_values_normalized[3],
+                             channel_values_normalized[4],
+                             channel_values_normalized[5],
+                             channel_values_normalized[6],
+                             channel_values_normalized[7]);
+
   mg_send_websocket_frame(nc, WEBSOCKET_OP_TEXT, buf, strlen(buf));
 }
 

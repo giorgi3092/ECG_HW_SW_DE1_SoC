@@ -1,8 +1,8 @@
 #include "adc.h"
 #include "mongoose.h"
 
-#ifndef ADC_FUNCTION_DEFINITIONS
-#define ADC_FUNCTION_DEFINITIONS
+#ifndef ADC_FUNCS_DEFINED
+#define ADC_FUNCS_DEFINED
 
 /* Open /dev/mem to give access to physical addresses */
 int open_physical (int fd)
